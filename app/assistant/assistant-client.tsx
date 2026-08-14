@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { getAssistantConversationAction, listAssistantConversationsAction, sendAssistantMessageAction } from "@/server/actions";
+import { acceptMemorySuggestionAction, getAssistantConversationAction, listAssistantConversationsAction, rejectMemorySuggestionAction, sendAssistantMessageAction } from "@/server/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Conversation = { id: string; title: string; updatedAt: Date };
 type ChatMessage = { id?: string; role: "USER" | "ASSISTANT"; content: string; createdAt?: Date };
+type MemorySuggestion = { content: string; type: string; reason: string };
 
 export function AssistantClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -14,6 +15,7 @@ export function AssistantClient() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string>();
+  const [suggestion, setSuggestion] = useState<MemorySuggestion>();
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export function AssistantClient() {
   function openConversation(id: string) {
     setConversationId(id);
     setError(undefined);
+    setSuggestion(undefined);
     startTransition(async () => {
       const result = await getAssistantConversationAction(id);
       if ("messages" in result) setMessages(result.messages as ChatMessage[]);
@@ -37,6 +40,7 @@ export function AssistantClient() {
     setConversationId(undefined);
     setMessages([]);
     setError(undefined);
+    setSuggestion(undefined);
   }
 
   function send() {
@@ -46,7 +50,7 @@ export function AssistantClient() {
     setError(undefined);
     setMessages((current: ChatMessage[]) => [...current, { role: "USER", content: text }]);
     startTransition(async () => {
-      const result = await sendAssistantMessageAction({ message: text, conversationId }) as { error?: string; conversationId?: string; message?: ChatMessage };
+      const result = await sendAssistantMessageAction({ message: text, conversationId }) as { error?: string; conversationId?: string; message?: ChatMessage; memorySuggestion?: MemorySuggestion };
       if (result.error || !result.message || !result.conversationId) {
         setError(result.error ?? "The assistant returned an invalid response.");
         return;
@@ -54,6 +58,7 @@ export function AssistantClient() {
       const assistantMessage = result.message;
       setConversationId(result.conversationId);
       setMessages((current: ChatMessage[]) => [...current, assistantMessage]);
+      setSuggestion(result.memorySuggestion);
       const list = await listAssistantConversationsAction();
       if ("conversations" in list) setConversations(list.conversations as Conversation[]);
     });
@@ -72,12 +77,14 @@ export function AssistantClient() {
       <section className="card flex min-h-[620px] flex-col">
         <p className="text-sm uppercase tracking-widest text-violet-300">AI Assistant</p>
         <h1 className="mt-2 text-4xl font-bold">LumaOS Intelligence</h1>
+        <div className="mt-4 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-3 text-sm text-violet-100"><strong>AI Context:</strong> Using your profile, active goals, open tasks, relevant memories, and recent conversation context. Internal IDs, prompts, provider settings, and secrets are not shown.</div>
         <div className="mt-6 flex-1 space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
           {messages.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-slate-400">Ask LumaOS for help planning, studying, or thinking through your goals using your saved context.</div> : messages.map((item: ChatMessage, index: number) => (
             <div key={item.id ?? index} className={`max-w-[85%] rounded-2xl p-4 ${item.role === "USER" ? "ml-auto bg-violet-600 text-white" : "bg-slate-800 text-slate-100"}`}><p className="text-xs font-semibold uppercase tracking-wide opacity-70">{item.role === "USER" ? "You" : "LumaOS"}</p><p className="mt-2 whitespace-pre-wrap">{item.content}</p></div>
           ))}
           {isPending ? <p className="text-sm text-violet-300">LumaOS is thinking…</p> : null}
         </div>
+        {suggestion ? <div className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-100"><p className="font-semibold">Memory suggestion</p><p className="mt-1">{suggestion.content}</p><p className="mt-1 text-emerald-200/80">{suggestion.reason}</p><div className="mt-3 flex gap-2"><form action={acceptMemorySuggestionAction}><input type="hidden" name="content" value={suggestion.content}/><input type="hidden" name="type" value={suggestion.type}/><input type="hidden" name="reason" value={suggestion.reason}/><Button type="submit" onClick={() => setSuggestion(undefined)}>Accept</Button></form><form action={rejectMemorySuggestionAction}><Button type="submit" onClick={() => setSuggestion(undefined)}>Reject</Button></form></div></div> : null}
         {error ? <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</p> : null}
         <div className="mt-4 flex gap-3"><Input value={message} onChange={(event: { target: { value: string } }) => setMessage(event.target.value)} onKeyDown={(event: { key: string }) => { if (event.key === "Enter") send(); }} placeholder="Ask LumaOS…" disabled={isPending} /><Button type="button" onClick={send} disabled={isPending || !message.trim()}>Send</Button></div>
       </section>

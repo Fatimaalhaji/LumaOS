@@ -5,6 +5,15 @@ import { AIProviderError, createAIProvider, type AIProvider, type AIProviderMess
 import { appendMessage, createConversation, getRecentMessages, getUserConversation } from "@/server/repositories/conversations";
 
 export type GenerateAssistantResponseInput = { userId: string; message: string; conversationId?: string; provider?: AIProvider };
+export type MemorySuggestion = { content: string; type: "FACT" | "PREFERENCE" | "GOAL" | "PROFILE" | "KNOWLEDGE" | "PROJECT"; reason: string };
+
+export function suggestMemoryFromMessage(message: string): MemorySuggestion | null {
+  const text = message.trim();
+  const match = text.match(/(?:remember that|please remember|save this)\s+(.+)/i);
+  if (!match?.[1] || match[1].trim().length < 3) return null;
+  return { content: match[1].trim().slice(0, 1000), type: "FACT", reason: "You explicitly asked LumaOS to remember this. It will only be saved if you accept." };
+}
+
 
 function normalizeAIError(error: unknown) {
   if (error instanceof AIProviderError) {
@@ -48,7 +57,7 @@ export async function generateAssistantResponse(input: GenerateAssistantResponse
     if (!content) throw new AIProviderError("empty_response");
     await appendMessage(conversation.id, "USER", parsed.message);
     const assistantMessage = await appendMessage(conversation.id, "ASSISTANT", content);
-    return { conversationId: conversation.id, message: { id: assistantMessage.id, role: "ASSISTANT" as const, content, createdAt: assistantMessage.createdAt } };
+    return { conversationId: conversation.id, message: { id: assistantMessage.id, role: "ASSISTANT" as const, content, createdAt: assistantMessage.createdAt }, memorySuggestion: suggestMemoryFromMessage(parsed.message) };
   } catch (error) {
     console.error("AI response failed", { name: error instanceof Error ? error.name : "unknown", code: error instanceof AIProviderError ? error.code : "unknown" });
     return { error: normalizeAIError(error), conversationId: conversation.id };

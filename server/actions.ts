@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { goals, profiles, tasks, users } from "@/db/schema";
-import { goalSchema, memorySchema, onboardingSchema, registerSchema, taskSchema } from "@/lib/validation/core";
+import { goalSchema, memorySchema, memoryFilterSchema, memorySuggestionSchema, onboardingSchema, profileSchema, registerSchema, taskSchema } from "@/lib/validation/core";
 import { createMemory, deleteMemory, updateMemory } from "@/server/services/memory";
 import { UnauthorizedError, toActionError } from "@/server/errors";
 import { ensureGoal } from "@/server/repositories/core";
@@ -82,6 +82,20 @@ export async function onboardingAction(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function updateProfileAction(formData: FormData) {
+  const id = await userId();
+  const input = profileSchema.parse(Object.fromEntries(formData));
+  await db
+    .insert(profiles)
+    .values({ userId: id, displayName: input.displayName, primaryGoal: input.primaryGoal || null, about: input.about || null, onboardingCompletedAt: input.onboardingCompleted ? new Date() : null })
+    .onConflictDoUpdate({
+      target: profiles.userId,
+      set: { displayName: input.displayName, primaryGoal: input.primaryGoal || null, about: input.about || null, onboardingCompletedAt: input.onboardingCompleted ? new Date() : null, updatedAt: new Date() },
+    });
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+}
+
 export async function createGoalAction(formData: FormData) {
   const id = await userId();
   const input = goalSchema.parse(Object.fromEntries(formData));
@@ -131,6 +145,26 @@ export async function upsertMemoryAction(formData: FormData) {
   }
 
   revalidatePath("/memory");
+}
+
+export async function acceptMemorySuggestionAction(formData: FormData) {
+  const id = await userId();
+  const input = memorySuggestionSchema.parse(Object.fromEntries(formData));
+  await createMemory(id, { type: input.type, content: input.content, importance: 3, source: "USER" });
+  revalidatePath("/memory");
+  revalidatePath("/assistant");
+}
+
+export async function rejectMemorySuggestionAction() {
+  await userId();
+  revalidatePath("/assistant");
+}
+
+export async function searchMemoryAction(formData: FormData) {
+  const id = await userId();
+  const input = memoryFilterSchema.parse(Object.fromEntries(formData));
+  const { listMemories } = await import("@/server/repositories/core");
+  return { memories: await listMemories(id, { query: input.query || undefined, type: input.type || undefined }) };
 }
 
 export async function deleteMemoryAction(memoryId: string) {
