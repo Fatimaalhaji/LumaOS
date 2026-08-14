@@ -134,3 +134,34 @@ export async function deleteMemoryAction(memoryId: string) {
   await db.delete(memories).where(and(eq(memories.id, memoryId), eq(memories.userId, id)));
   revalidatePath("/memory");
 }
+
+export async function sendAssistantMessageAction(payload: unknown) {
+  try {
+    const id = await userId();
+    const { generateAssistantResponse } = await import("@/server/services/ai");
+    const input = payload as { message?: string; conversationId?: string };
+    return await generateAssistantResponse({ userId: id, message: input.message ?? "", conversationId: input.conversationId });
+  } catch (error) {
+    return { error: toActionError(error) };
+  }
+}
+
+export async function getAssistantConversationAction(conversationId: string) {
+  try {
+    const id = await userId();
+    const { getConversationMessages } = await import("@/server/repositories/conversations");
+    return { messages: await getConversationMessages(id, conversationId) };
+  } catch (error) {
+    return { error: toActionError(error) };
+  }
+}
+
+export async function listAssistantConversationsAction() {
+  try {
+    const id = await userId();
+    const { listUserConversations } = await import("@/server/repositories/conversations");
+    return { conversations: await listUserConversations(id) };
+  } catch (error) {
+    return { error: toActionError(error) };
+  }
+}

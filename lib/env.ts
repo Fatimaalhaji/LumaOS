@@ -6,6 +6,9 @@ const envSchema = z.object({
   AUTH_TRUST_HOST: z.string().optional(),
   AI_PROVIDER: z.string().optional(),
   AI_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().optional(),
+  AI_MAX_OUTPUT_TOKENS: z.string().optional(),
+  AI_TEMPERATURE: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

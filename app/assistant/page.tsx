@@ -1,1 +1,5 @@
-export default function Assistant(){ return <div className="card mx-auto max-w-4xl"><p className="text-sm uppercase tracking-widest text-violet-300">AI Assistant</p><h1 className="mt-2 text-4xl font-bold">Context-aware assistant placeholder</h1><p className="mt-4 text-slate-300">The assistant surface is reserved for a later phase. No AI provider is connected in Phase 1, and no user data is sent to an external model.</p><div className="mt-8 rounded-2xl border border-dashed border-slate-600 p-8 text-center text-slate-400">Conversation UI will appear here.</div></div>; }
+import { AssistantClient } from "@/app/assistant/assistant-client";
+
+export default function Assistant() {
+  return <AssistantClient />;
+}

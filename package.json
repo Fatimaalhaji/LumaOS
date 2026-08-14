@@ -21,7 +21,8 @@
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "openai": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
