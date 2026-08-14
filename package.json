@@ -25,7 +25,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
-    "@types/bcryptjs": "latest",
     "@types/node": "latest",
     "@types/pg": "latest",
     "@types/react": "latest",
