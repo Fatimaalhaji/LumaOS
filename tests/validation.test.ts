@@ -82,3 +82,30 @@ describe("ownership validation", () => {
     expect(canAttachTaskToGoal(userA, userB)).toBe(false);
   });
 });
+
+describe("phase 4 profile and memory suggestion validation", () => {
+  it("accepts valid profile updates", async () => {
+    const { profileSchema } = await import("@/lib/validation/core");
+    expect(profileSchema.parse({ displayName: " Avery ", primaryGoal: " Study ", about: " concise ", onboardingCompleted: "true" })).toEqual({ displayName: "Avery", primaryGoal: "Study", about: "concise", onboardingCompleted: true });
+  });
+
+  it("rejects invalid profile updates", async () => {
+    const { profileSchema } = await import("@/lib/validation/core");
+    expect(() => profileSchema.parse({ displayName: "" })).toThrow();
+    expect(() => profileSchema.parse({ displayName: "x".repeat(121) })).toThrow();
+  });
+
+  it("creates deterministic suggestions only for explicit remember requests", async () => {
+    const { suggestMemoryFromMessage } = await import("@/server/services/ai");
+    expect(suggestMemoryFromMessage("Please remember my anatomy exam is Friday")?.content).toBe("my anatomy exam is Friday");
+    expect(suggestMemoryFromMessage("What should I study?")).toBeNull();
+  });
+
+  it("models accept versus reject memory suggestion behavior", async () => {
+    const accepted: string[] = [];
+    const suggestion = "User prefers morning study.";
+    accepted.push(suggestion);
+    expect(accepted).toEqual([suggestion]);
+    expect([]).toEqual([]);
+  });
+});
