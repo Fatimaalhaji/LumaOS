@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { goals, memories, profiles, tasks } from "@/db/schema";
+import { goals, profiles, tasks } from "@/db/schema";
+import { getRelevantMemories } from "@/server/services/memory";
 
 export const AI_CONTEXT_LIMITS = {
   relevantMemories: 6,
@@ -48,20 +49,16 @@ export async function buildUserContext(userId: string, query: string): Promise<L
     .where(and(eq(tasks.userId, userId), eq(tasks.status, "TODO")))
     .orderBy(desc(tasks.updatedAt))
     .limit(AI_CONTEXT_LIMITS.openTasks);
-  const memoryPool = await db
-    .select({ type: memories.type, content: memories.content, importance: memories.importance })
-    .from(memories)
-    .where(eq(memories.userId, userId))
-    .orderBy(desc(memories.importance), desc(memories.updatedAt))
-    .limit(30);
+  const memoryPool = await getRelevantMemories(userId, query, AI_CONTEXT_LIMITS.relevantMemories);
 
   const relevantMemories = memoryPool
     .map((memory) => ({ ...memory, score: memoryScore(memory.content, query, memory.importance) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, AI_CONTEXT_LIMITS.relevantMemories)
-    .map(({ score: _score, ...memory }) => ({
-      ...memory,
+    .map((memory) => ({
+      type: memory.type,
       content: truncate(memory.content, AI_CONTEXT_LIMITS.memoryChars) ?? "",
+      importance: memory.importance,
     }));
 
   return {

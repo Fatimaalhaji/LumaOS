@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { goals, memories, profiles, tasks, users } from "@/db/schema";
+import { goals, memories, profiles, tasks } from "@/db/schema";
 import { NotFoundError } from "@/server/errors";
 
 export async function getDashboard(userId: string) {

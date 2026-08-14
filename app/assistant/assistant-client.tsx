@@ -51,8 +51,9 @@ export function AssistantClient() {
         setError(result.error ?? "The assistant returned an invalid response.");
         return;
       }
+      const assistantMessage = result.message;
       setConversationId(result.conversationId);
-      setMessages((current: ChatMessage[]) => [...current, result.message]);
+      setMessages((current: ChatMessage[]) => [...current, assistantMessage]);
       const list = await listAssistantConversationsAction();
       if ("conversations" in list) setConversations(list.conversations as Conversation[]);
     });

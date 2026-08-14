@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertOwnsResource, goalSchema, memorySchema, taskSchema } from "@/lib/validation/core";
+import { assertOwnsResource, goalSchema, memorySchema, memorySearchSchema, taskSchema } from "@/lib/validation/core";
 
 const userA = "11111111-1111-4111-8111-111111111111";
 const userB = "22222222-2222-4222-8222-222222222222";
@@ -11,7 +11,7 @@ function canAttachTaskToGoal(taskUserId: string, goalUserId: string) {
 
 describe("goal validation", () => {
   it("accepts valid goal input", () => {
-    expect(goalSchema.parse({ title: "Launch foundation", description: "Ship Phase 1" })).toEqual({
+    expect(goalSchema.parse({ title: " Launch foundation ", description: " Ship Phase 1 " })).toEqual({
       title: "Launch foundation",
       description: "Ship Phase 1",
     });
@@ -39,15 +39,32 @@ describe("task validation", () => {
 });
 
 describe("memory validation", () => {
-  it("accepts valid memory input", () => {
-    const memory = memorySchema.parse({ type: "FACT", content: "User prefers concise summaries", importance: "4", source: "manual" });
-    expect(memory).toEqual({ type: "FACT", content: "User prefers concise summaries", importance: 4, source: "manual" });
+  it("accepts valid memory input and trims content", () => {
+    const memory = memorySchema.parse({ type: "FACT", content: " User prefers concise summaries ", importance: "4", source: "USER" });
+    expect(memory).toEqual({ type: "FACT", content: "User prefers concise summaries", importance: 4, source: "USER" });
+  });
+
+  it("defaults controlled source to USER", () => {
+    expect(memorySchema.parse({ type: "PREFERENCE", content: "Likes morning planning", importance: 3 }).source).toBe("USER");
+  });
+
+  it("accepts controlled memory types and sources", () => {
+    expect(memorySchema.parse({ type: "PROFILE", content: "Name is Avery", importance: 1, source: "SYSTEM" }).type).toBe("PROFILE");
+    expect(memorySchema.parse({ type: "PROJECT", content: "Working on LumaOS", importance: 5, source: "IMPORT" }).source).toBe("IMPORT");
   });
 
   it("rejects invalid memory input", () => {
-    expect(() => memorySchema.parse({ type: "UNKNOWN", content: "abc", importance: 3, source: "manual" })).toThrow();
-    expect(() => memorySchema.parse({ type: "FACT", content: "ab", importance: 3, source: "manual" })).toThrow();
-    expect(() => memorySchema.parse({ type: "FACT", content: "abc", importance: 9, source: "manual" })).toThrow();
+    expect(() => memorySchema.parse({ type: "UNKNOWN", content: "abc", importance: 3, source: "USER" })).toThrow();
+    expect(() => memorySchema.parse({ type: "FACT", content: "ab", importance: 3, source: "USER" })).toThrow();
+    expect(() => memorySchema.parse({ type: "FACT", content: "abc", importance: 9, source: "USER" })).toThrow();
+    expect(() => memorySchema.parse({ type: "FACT", content: "abc", importance: 3, source: "manual" })).toThrow();
+    expect(() => memorySchema.parse({ type: "FACT", content: "a".repeat(4001), importance: 3, source: "USER" })).toThrow();
+  });
+
+  it("validates lexical memory search", () => {
+    expect(memorySearchSchema.parse({ query: " biology exam ", limit: "6" })).toEqual({ query: "biology exam", limit: 6 });
+    expect(() => memorySearchSchema.parse({ query: "", limit: 5 })).toThrow();
+    expect(() => memorySearchSchema.parse({ query: "biology", limit: 51 })).toThrow();
   });
 });
 
