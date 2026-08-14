@@ -1,0 +1,1 @@
+export default function Settings(){ return <div className="card"><h1 className="text-4xl font-bold">Settings</h1><p className="mt-4 text-slate-300">Account and privacy settings will expand in later phases.</p></div>; }

@@ -1,0 +1,2 @@
+import Link from "next/link"; import { loginAction } from "@/server/actions";
+export default function Login(){ return <main className="mx-auto grid min-h-screen max-w-md place-items-center"><form action={loginAction} className="card grid w-full gap-4"><h1 className="text-3xl font-bold">Welcome back</h1><input name="email" type="email" placeholder="Email" required/><input name="password" type="password" placeholder="Password" required/><button>Login</button><Link href="/register">Create an account</Link></form></main>; }
