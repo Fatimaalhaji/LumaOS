@@ -1,0 +1,24 @@
+import { relations, sql } from "drizzle-orm";
+import { boolean, integer, pgEnum, pgTable, primaryKey, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import type { AdapterAccountType } from "next-auth/adapters";
+
+export const memoryTypeEnum = pgEnum("memory_type", ["PROFILE", "PREFERENCE", "GOAL", "FACT", "KNOWLEDGE", "PROJECT"]);
+export const taskStatusEnum = pgEnum("task_status", ["TODO", "DONE"]);
+export const messageRoleEnum = pgEnum("message_role", ["USER", "ASSISTANT", "SYSTEM"]);
+
+const timestamps = { createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow() };
+
+export const users = pgTable("users", { id: uuid("id").primaryKey().defaultRandom(), name: text("name"), email: text("email").notNull().unique(), emailVerified: timestamp("email_verified", { withTimezone: true }), image: text("image"), passwordHash: text("password_hash"), ...timestamps });
+export const accounts = pgTable("accounts", { userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), type: text("type").$type<AdapterAccountType>().notNull(), provider: text("provider").notNull(), providerAccountId: text("provider_account_id").notNull(), refresh_token: text("refresh_token"), access_token: text("access_token"), expires_at: integer("expires_at"), token_type: text("token_type"), scope: text("scope"), id_token: text("id_token"), session_state: text("session_state") }, (account) => ({ compoundKey: primaryKey({ columns: [account.provider, account.providerAccountId] }) }));
+export const sessions = pgTable("sessions", { sessionToken: text("session_token").primaryKey(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), expires: timestamp("expires", { withTimezone: true }).notNull() });
+export const verificationTokens = pgTable("verification_tokens", { identifier: text("identifier").notNull(), token: text("token").notNull(), expires: timestamp("expires", { withTimezone: true }).notNull() }, (vt) => ({ compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }) }));
+
+export const profiles = pgTable("profiles", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }), displayName: varchar("display_name", { length: 120 }).notNull(), primaryGoal: text("primary_goal"), about: text("about"), onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }), ...timestamps });
+export const goals = pgTable("goals", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), title: varchar("title", { length: 180 }).notNull(), description: text("description"), archived: boolean("archived").notNull().default(false), ...timestamps });
+export const tasks = pgTable("tasks", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), goalId: uuid("goal_id").references(() => goals.id, { onDelete: "set null" }), title: varchar("title", { length: 180 }).notNull(), notes: text("notes"), status: taskStatusEnum("status").notNull().default("TODO"), dueDate: timestamp("due_date", { withTimezone: true }), ...timestamps });
+export const memories = pgTable("memories", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), type: memoryTypeEnum("type").notNull(), content: text("content").notNull(), importance: integer("importance").notNull().default(3), source: varchar("source", { length: 120 }).notNull().default("manual"), embeddingModel: text("embedding_model"), embeddingMetadata: text("embedding_metadata"), ...timestamps });
+export const conversations = pgTable("conversations", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), title: varchar("title", { length: 180 }).notNull().default("New conversation"), ...timestamps });
+export const messages = pgTable("messages", { id: uuid("id").primaryKey().defaultRandom(), conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }), role: messageRoleEnum("role").notNull(), content: text("content").notNull(), ...timestamps });
+
+export const userRelations = relations(users, ({ one, many }) => ({ profile: one(profiles), goals: many(goals), tasks: many(tasks), memories: many(memories), conversations: many(conversations) }));
+export const conversationRelations = relations(conversations, ({ many }) => ({ messages: many(messages) }));
