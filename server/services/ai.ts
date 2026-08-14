@@ -27,7 +27,8 @@ export function buildPromptMessages(params: { message: string; context: LumaAICo
   ];
 }
 
-export async function enforceAssistantRateLimitBoundary(_userId: string) {
+export async function enforceAssistantRateLimitBoundary(userId: string) {
+  void userId;
   // Future production requirement: enforce per-user and per-IP assistant rate limits here.
 }
 

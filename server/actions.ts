@@ -6,8 +6,9 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/lib/db";
-import { goals, memories, profiles, tasks, users } from "@/db/schema";
+import { goals, profiles, tasks, users } from "@/db/schema";
 import { goalSchema, memorySchema, onboardingSchema, registerSchema, taskSchema } from "@/lib/validation/core";
+import { createMemory, deleteMemory, updateMemory } from "@/server/services/memory";
 import { UnauthorizedError, toActionError } from "@/server/errors";
 import { ensureGoal } from "@/server/repositories/core";
 
@@ -17,25 +18,26 @@ async function userId() {
   return session.user.id;
 }
 
-export async function registerAction(_: unknown, formData: FormData) {
+export async function registerAction(formData: FormData) {
   try {
     const input = registerSchema.parse(Object.fromEntries(formData));
     const email = input.email.toLowerCase();
     const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
 
-    if (existingUser) return { error: "Unable to register with those credentials." };
+    if (existingUser) redirect("/register?error=credentials");
 
     const hash = await bcrypt.hash(input.password, 12);
     await db.insert(users).values({ name: input.name, email, passwordHash: hash });
     await signIn("credentials", { email, password: input.password, redirect: false });
   } catch (error) {
-    return { error: toActionError(error) };
+    console.error("Registration failed", { error: toActionError(error) });
+    redirect("/register?error=credentials");
   }
 
   redirect("/onboarding");
 }
 
-export async function loginAction(_: unknown, formData: FormData) {
+export async function loginAction(formData: FormData) {
   try {
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),
@@ -43,17 +45,17 @@ export async function loginAction(_: unknown, formData: FormData) {
       redirect: false,
     });
   } catch {
-    return { error: "Invalid email or password." };
+    redirect("/login?error=credentials");
   }
 
   redirect("/dashboard");
 }
 
 export async function logoutAction() {
-  await signOut({ redirectTo: "/login" });
+  await signOut({ callbackUrl: "/login" });
 }
 
-export async function onboardingAction(_: unknown, formData: FormData) {
+export async function onboardingAction(formData: FormData) {
   const id = await userId();
   const input = onboardingSchema.parse(Object.fromEntries(formData));
   await db
@@ -120,10 +122,12 @@ export async function upsertMemoryAction(formData: FormData) {
   const input = memorySchema.parse(Object.fromEntries(formData));
   const memoryId = String(formData.get("id") || "");
 
+  const uiMemory = { ...input, source: "USER" as const };
+
   if (memoryId) {
-    await db.update(memories).set({ ...input, updatedAt: new Date() }).where(and(eq(memories.id, memoryId), eq(memories.userId, id)));
+    await updateMemory(id, memoryId, uiMemory);
   } else {
-    await db.insert(memories).values({ userId: id, ...input });
+    await createMemory(id, uiMemory);
   }
 
   revalidatePath("/memory");
@@ -131,7 +135,7 @@ export async function upsertMemoryAction(formData: FormData) {
 
 export async function deleteMemoryAction(memoryId: string) {
   const id = await userId();
-  await db.delete(memories).where(and(eq(memories.id, memoryId), eq(memories.userId, id)));
+  await deleteMemory(id, memoryId);
   revalidatePath("/memory");
 }
 

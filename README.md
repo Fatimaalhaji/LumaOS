@@ -1,28 +1,43 @@
 # LumaOS Core
 
-LumaOS is a personal AI operating layer. Phase 3 adds a context-aware assistant on top of the authentication, profile, goal, task, memory, conversation, and context foundations.
+LumaOS is a personal AI operating layer built as a protected Next.js application. The current stack includes the Phase 1 product foundation, the Phase 2 Memory and Context Engines, and the Phase 3 Luma Intelligence Engine.
 
-## Current architecture
+## Architecture
 
-- **Next.js App Router** renders protected application screens and server actions.
-- **Auth.js** provides credential-based local authentication and server-side sessions.
-- **PostgreSQL + Drizzle ORM** store users, profiles, goals, tasks, memories, conversations, and messages.
-- **Zod** validates environment variables and all user input accepted by server actions.
-- **Vitest** covers validation and basic ownership logic.
+- **App layer:** Next.js App Router renders authenticated dashboard, task, memory, settings, onboarding, and assistant screens.
+- **Action layer:** Server actions authenticate every mutation, derive ownership from the active Auth.js session, validate input with Zod, and never trust client-supplied `userId` values.
+- **Repository/service layer:** Drizzle repositories and services enforce user-scoped access to goals, tasks, memories, conversations, and messages.
+- **Context Engine:** `buildUserContext()` retrieves bounded profile, goal, task, and relevant memory context for downstream AI use.
+- **Intelligence Engine:** Assistant server actions call the AI service, which validates messages, verifies conversation ownership, builds context, invokes the configured provider, normalizes errors, and persists conversation messages.
+- **Database:** PostgreSQL stores Auth.js identity data plus LumaOS profiles, goals, tasks, memories, conversations, and messages.
 
-Unfinished future systems: autonomous agents, plugin marketplace, document ingestion, vector embeddings, external integrations, automatic memory extraction, tool execution, and advanced permissions.
+## Phase 1 foundation
 
-## Tech stack
+Phase 1 provides the core application shell: TypeScript, Next.js App Router, Drizzle PostgreSQL, Auth.js credentials authentication, bcrypt password hashing, JWT sessions, user profiles, goals, tasks, memories, conversations, messages, validation, and server-side ownership enforcement.
 
-Next.js, React, TypeScript strict mode, pnpm, Tailwind CSS, Drizzle ORM, PostgreSQL, Auth.js, Zod, and Vitest.
+## Phase 2: Memory and Context Engines
 
-## Local development
+The Memory Engine stores user-owned memories with controlled memory types, controlled memory sources, bounded content, bounded importance, lexical search, and CRUD operations that always scope reads and writes to the authenticated user. UI-created memories are treated as user-created records; automatic memory extraction is intentionally not enabled.
 
-```bash
-pnpm install
-cp .env.example .env
-pnpm dev
-```
+The Context Engine builds structured user context only. It retrieves a bounded profile summary, active goals, open tasks, and lexically relevant memories. It does not call the AI provider and does not generate responses.
+
+## Phase 3: Luma Intelligence Engine
+
+LumaOS routes assistant requests through a server-only Intelligence Engine: UI → server action → AI service → Context Engine → AI provider → validated application response.
+
+The AI provider abstraction lives behind `server/services/ai/provider.ts`. The first implementation is OpenAI, configured only from server-side environment variables. Browser code never imports provider code, never calls OpenAI directly, and never receives provider credentials.
+
+The AI service validates assistant messages, validates optional conversation IDs, verifies conversation ownership, retrieves bounded recent message history, builds bounded LumaOS context, invokes the configured provider, validates non-empty assistant output, normalizes provider failures, and persists user and assistant messages in user-scoped conversations.
+
+## Conversation storage
+
+Conversations belong to users. Messages belong to conversations. Conversation listing, message loading, and assistant appends require an authenticated session and validate ownership before returning or writing conversation data.
+
+## Authentication and privacy model
+
+Auth.js credentials authentication stores bcrypt password hashes and uses JWT-backed sessions. All user-owned mutations derive `userId` from the server-side session.
+
+For assistant requests, LumaOS sends only the current request, bounded recent conversation history, a limited profile summary, relevant memories, active goals, and open tasks to the AI provider. It does not send passwords, API keys, full database dumps, hidden configuration, or unrelated private records.
 
 ## Environment variables
 
@@ -37,6 +52,14 @@ pnpm dev
 
 Never commit real secrets.
 
+## Local development
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
 ## Database setup
 
 Start PostgreSQL locally, set `DATABASE_URL`, then run:
@@ -46,11 +69,7 @@ pnpm drizzle-kit generate
 pnpm drizzle-kit migrate
 ```
 
-The initial schema includes `users`, `profiles`, `goals`, `tasks`, `memories`, `conversations`, and `messages`. Memory rows include metadata fields reserved for a later pgvector migration.
-
-## Authentication setup
-
-Phase 1 uses Auth.js credentials authentication for local development. Registration stores a bcrypt password hash and login creates a JWT-backed session. Social providers are intentionally not configured yet.
+The initial schema includes `users`, `accounts`, `sessions`, `verification_tokens`, `profiles`, `goals`, `tasks`, `memories`, `conversations`, and `messages`. Memory rows include metadata fields reserved for a future semantic/vector memory migration.
 
 ## Commands
 
@@ -61,18 +80,6 @@ pnpm test
 pnpm build
 ```
 
-## Phase 3: LumaOS Intelligence Engine
+## Current limitations and future work
 
-LumaOS now routes assistant requests through a server-only Intelligence Engine instead of exposing a generic chatbot surface. The boundary is: UI → server action → AI service → Context Engine → AI provider → validated application response.
-
-The AI provider is isolated behind `server/services/ai/provider.ts`. The first provider is OpenAI, configured only on the server with `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, `AI_MAX_OUTPUT_TOKENS`, and `AI_TEMPERATURE`. Browser code never receives provider credentials and must not import provider code directly.
-
-The AI service in `server/services/ai.ts` validates message input, verifies user-scoped conversation ownership, retrieves bounded recent history, builds structured LumaOS context, invokes the configured provider, normalizes failures, and persists user/assistant messages in the existing `conversations` and `messages` tables.
-
-Context comes from `buildUserContext()` in `server/services/context.ts`. It sends only a bounded representation to the model: profile summary, relevant memories, active goals, and open tasks. The assistant may read relevant memory context, but Phase 3 does not create, update, or extract memories automatically.
-
-Conversation storage remains user-scoped. Client-supplied conversation IDs are validated as UUIDs and then checked against the authenticated user before messages are returned or appended.
-
-Privacy model: LumaOS sends the current request, a limited set of relevant memories, active goals, open tasks, a small profile summary, and bounded recent conversation history to the AI provider. It does not send the entire user database, API keys, passwords, raw prompts, internal configuration, or unnecessary private records.
-
-Current limitations and production requirements: distributed rate limiting is intentionally not implemented yet, but the AI service includes a boundary for it. LumaOS does not yet include agents, tool execution, calendar/email integrations, autonomous actions, vector embeddings, automatic memory extraction, billing, plugins, or marketplace functionality.
+LumaOS does not yet include autonomous agents, tool execution, external tool integrations, calendar/email integrations, vector embeddings, semantic memory retrieval, automatic memory extraction, document ingestion, billing, plugins, marketplace functionality, distributed rate limiting, or advanced permissions. These are future phases, not Phase 3 features.
